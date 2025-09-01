@@ -9,13 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
+      issues: write   # only needed if the action is allowed to open issues
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # If your app needs to be running before ZAP scans it, spin it up here:
       - name: Start app with docker-compose
         run: |
           docker compose -f infra/docker-compose.ci.yml up -d
@@ -36,15 +35,20 @@ jobs:
         uses: zaproxy/action-baseline@v0.13.0
         with:
           target: 'http://localhost:8000'
-          rules_file_name: 'zap-baseline.conf'
-          cmd_options: '-a'  # active scan lite
+          rules_file_name: 'zap-baseline.conf'   # ensure this path exists in repo
+          cmd_options: '-a'                      # active scan (lite)
+          allow_issue_writing: true              # requires issues: write; set false if you don't want issues
 
-      - name: Upload ZAP Report
+      - name: Upload ZAP Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-${{ github.sha }}
-          path: report_html.html
+          # SAFE + UNIQUE name per run (prevents collisions across jobs/matrices)
+          name: zap-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
           if-no-files-found: warn
           retention-days: 7
 
