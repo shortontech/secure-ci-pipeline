@@ -1,0 +1,58 @@
+name: ZAP Baseline (compose + host network)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start app with compose
+        run: |
+          docker compose -f infra/docker-compose.ci.yml up -d
+          echo "Waiting for app to become ready at http://localhost:8000 ..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000 >/dev/null; then
+              echo "App is up."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time."
+          docker compose -f infra/docker-compose.ci.yml logs --no-color || true
+          exit 1
+
+      - name: Run ZAP Baseline (Docker, host network)
+        run: |
+          docker run --rm --network host -v "$PWD:/zap/wrk" owasp/zap2docker-stable \
+            zap-baseline.py \
+              -t "http://localhost:8000" \
+              -r "zap-report.html" \
+              -a
+
+      - name: Upload ZAP Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report-${{ github.sha }}
+          path: zap-report.html
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Dump compose logs (always)
+        if: always()
+        run: docker compose -f infra/docker-compose.ci.yml logs --no-color || true
+
+      - name: Stop app
+        if: always()
+        run: docker compose -f infra/docker-compose.ci.yml down -v
