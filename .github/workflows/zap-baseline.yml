@@ -1,8 +1,12 @@
-name: ZAP Baseline (compose + host network)
+name: ZAP Baseline (compose + health + rich debug)
 
 on:
   push:
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   zap:
@@ -10,43 +14,73 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      APP_URL: http://localhost:8000
+      HEALTH_URL: http://localhost:8000/health
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Start app with compose
         run: |
+          set -euxo pipefail
           docker compose -f infra/docker-compose.ci.yml up -d
-          echo "Waiting for app to become ready at http://localhost:8000 ..."
-          for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8000 >/dev/null; then
-              echo "App is up."
-              exit 0
+
+      - name: List running containers
+        run: |
+          docker ps -a
+          echo
+          echo "Docker networks:"
+          docker network ls
+
+      - name: Wait for /health (200 OK)
+        run: |
+          set -euo pipefail
+          echo "Waiting for app health at $HEALTH_URL ..."
+          READY=0
+          for i in $(seq 1 90); do
+            RESP="$(curl -sS -m 3 -w ' CODE:%{http_code}\n' "$HEALTH_URL" || true)"
+            CODE="${RESP##* CODE:}"
+            BODY="${RESP% CODE:*}"
+            echo "Attempt $i: HTTP $CODE | Body: ${BODY:0:200}"
+            if [ "$CODE" = "200" ]; then
+              READY=1
+              break
             fi
             sleep 2
           done
-          echo "App did not become ready in time."
-          docker compose -f infra/docker-compose.ci.yml logs --no-color || true
-          exit 1
+          if [ "$READY" -ne 1 ]; then
+            echo "App did not become ready in time. Dumping logs..."
+            docker compose -f infra/docker-compose.ci.yml logs --no-color || true
+            exit 1
+          fi
 
-      - name: Run ZAP Baseline (Docker, host network)
+      - name: Run ZAP Baseline (Docker, host network, debug)
         run: |
+          set -euxo pipefail
+          # Run ZAP baseline, enable debug (-d), write HTML report, capture console output to zap-run.log
           docker run --rm --network host -v "$PWD:/zap/wrk" owasp/zap2docker-stable \
             zap-baseline.py \
-              -t "http://localhost:8000" \
+              -t "${APP_URL}" \
               -r "zap-report.html" \
-              -a
+              -a \
+              -d 2>&1 | tee zap-run.log
+          # Show where outputs landed
+          ls -lah zap-report.html zap-run.log
 
-      - name: Upload ZAP Report
+      - name: Upload ZAP Outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-${{ github.sha }}
-          path: zap-report.html
-          if-no-files-found: error
+          name: zap-outputs-${{ github.sha }}
+          path: |
+            zap-report.html
+            zap-run.log
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Dump compose logs (always)
