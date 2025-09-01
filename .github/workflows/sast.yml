@@ -1,0 +1,57 @@
+name: SAST
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install SAST tools
+        run: pip install --no-cache-dir "semgrep==1.*" "bandit==1.7.9"
+
+      - name: Semgrep (OWASP + auto)
+        run: semgrep --config p/owasp-top-ten --config auto --error --sarif -o semgrep.sarif || true
+
+      - name: Bandit (Python SAST)
+        run: bandit -r app/src -f sarif -o bandit.sarif || true
+
+      - name: List SARIF
+        run: ls -lah *.sarif && head -n 20 bandit.sarif || true
+
+      # Upload Semgrep first (sanity)
+      - name: Upload SARIF (Semgrep)
+        if: ${{ github.actor != 'nektos/act' && hashFiles('semgrep.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          wait-for-processing: true
+
+      - name: Upload SARIF (Bandit)
+        if: ${{ github.actor != 'nektos/act' && hashFiles('bandit.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          wait-for-processing: true
+
+      - name: Save SARIF locally (act)
+        if: ${{ github.actor == 'nektos/act' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-sarif
+          path: |
+            semgrep.sarif
+            bandit.sarif
