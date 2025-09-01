@@ -1,5 +1,5 @@
-# Headline
-Something other than lorem ipsum
+# Simple CI/CD setup with security enabled.
+Need to write something more interesting here.
 
 ![SAST](https://img.shields.io/github/actions/workflow/status/shortontech/secure-ci-pipeline/sast.yml?label=SAST)
 ![Secrets/Deps/IaC](https://img.shields.io/github/actions/workflow/status/shortontech/secure-ci-pipeline/secrets-deps-iac.yml?label=Secrets%2FDeps%2FIaC)
