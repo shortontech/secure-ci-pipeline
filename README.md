@@ -53,7 +53,7 @@ Modern attackers automate, so defenders must too. This pipeline:
 ## 🧑‍💻 Author
 
 **Steven Horton**  
-Security Engineer | Red Teaming | DevSecOps | Cloud Security  
+Software Engineer | Red Teaming | DevSecOps | Cloud Security  
 
 - 💼 [LinkedIn](https://www.linkedin.com/in/steven-horton-66325520)  
 - 🐙 [GitHub](https://github.com/shortontech)  
