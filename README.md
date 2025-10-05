@@ -6,10 +6,6 @@ This project demonstrates how to integrate **DevSecOps best practices** into a m
 
 ---
 
-```markdown
-      ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/shortontech/06522d3b723a877fce2c749350f6dc83/raw/gotrack-coverage.json)
-      ```
----
 
 ## 🚀 Features
 
