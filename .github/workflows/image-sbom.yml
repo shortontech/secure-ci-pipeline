@@ -37,7 +37,7 @@ jobs:
           exit-code: '0'   # do not fail the job on findings
 
       - name: Upload SBOM artifact (single upload, safe name)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: sbom-${{ github.sha }}
           path: sbom.spdx.json
